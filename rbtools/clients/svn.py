@@ -60,6 +60,30 @@ class SVNClient(SCMClient):
         self._svn_info_cache = {}
         self._svn_repository_info_cache = None
 
+    def get_raw_commit_message(self, revisions):
+        """Extracts the commit message based on the provided revision range."""
+        """Only takes the tip revision at the moment"""
+        command = ['-r', six.text_type(revisions['tip']), '-l', '1']
+        log = self.svn_log_xml(command)
+
+        if log is not None:
+            try:
+                root = ElementTree.fromstring(log)
+            except ValueError as e:
+                # _convert_symbolic_revision() nominally raises a ValueError to
+                # indicate any failure to determine the revision number from
+                # the log entry.  Here, we explicitly catch a ValueError from
+                # ElementTree and raise a generic SCMError so that this
+                # specific failure to parse the XML log output is
+                # differentiated from the nominal case.
+                raise SCMError('Failed to parse svn log - %s.' % e)
+
+            logentry = root.find('logentry')
+            if logentry is not None:
+                return logentry.find('msg').text
+
+        raise ValueError
+
     def get_repository_info(self):
         if self._svn_repository_info_cache:
             return self._svn_repository_info_cache
@@ -1048,6 +1072,7 @@ class SVNRepositoryInfo(RepositoryInfo):
         # did all we could really do.
         return self
 
+    
     def _get_repository_info(self, server, repository):
         try:
             return server.get_repository_info(repository['id'])
@@ -1088,3 +1113,5 @@ class SVNRepositoryInfo(RepositoryInfo):
         if split[-1] == '':
             split = split[0:-1]
         return split
+
+    
